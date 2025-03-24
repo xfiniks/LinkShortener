@@ -150,6 +150,30 @@ async def create_short_link(
     
     return response
 
+# Поиск ссылки по оригинальному URL
+@router.get("/links/search", response_model=LinkSearchResponse)
+async def search_link_by_url(
+    original_url: str,
+    db: Session = Depends(get_db)
+):
+    """Ищет короткие ссылки по оригинальному URL"""
+    links = db.query(Link).filter(
+        Link.original_url == original_url,
+        (Link.expires_at.is_(None) | (Link.expires_at > datetime.now(timezone.utc)))
+    ).all()
+    
+    response_links = [
+        LinkResponse(
+            short_code=link.short_code,
+            original_url=link.original_url,
+            short_url=build_short_url(link.short_code),
+            created_at=link.created_at,
+            expires_at=link.expires_at
+        ) for link in links
+    ]
+    
+    return LinkSearchResponse(links=response_links, count=len(response_links))
+
 # Получение информации о ссылке
 @router.get("/links/{short_code}", response_model=LinkResponse)
 async def get_link_info(
@@ -273,27 +297,3 @@ async def delete_link(
     reset_buffered_stats(short_code)
     
     return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-# Поиск ссылки по оригинальному URL
-@router.get("/links/search", response_model=LinkSearchResponse)
-async def search_link_by_url(
-    original_url: str,
-    db: Session = Depends(get_db)
-):
-    """Ищет короткие ссылки по оригинальному URL"""
-    links = db.query(Link).filter(
-        Link.original_url == original_url,
-        (Link.expires_at.is_(None) | (Link.expires_at > datetime.now(timezone.utc)))
-    ).all()
-    
-    response_links = [
-        LinkResponse(
-            short_code=link.short_code,
-            original_url=link.original_url,
-            short_url=build_short_url(link.short_code),
-            created_at=link.created_at,
-            expires_at=link.expires_at
-        ) for link in links
-    ]
-    
-    return LinkSearchResponse(links=response_links, count=len(response_links))
