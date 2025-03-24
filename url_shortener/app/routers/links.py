@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import Optional, List
 from datetime import datetime, timezone
+from app.config import settings
 
 from app.database import get_db
 from app.models import Link, User, Click
@@ -11,9 +12,10 @@ from app.schemas import LinkCreate, LinkResponse, LinkUpdate, LinkStats, LinkSta
 from app.utils import generate_short_code, build_short_url, is_expired
 from app.dependencies import get_current_active_user, get_link_owner_or_admin, get_client_info
 from app.cache import (
-    cache_url, get_cached_url, cache_stats, get_cached_stats,
-    cache_search_result, get_cached_search_result, invalidate_url_cache,
-    check_and_update_popularity, is_popular_url, invalidate_stats_cache
+    cache_url, get_cached_url, invalidate_url_cache,
+    is_popular_url, increment_access_counter,
+    add_click_details, reset_buffered_stats, get_buffered_clicks,
+    get_buffered_last_access
 )
 
 router = APIRouter(tags=["links"])
@@ -26,48 +28,52 @@ async def redirect_to_url(
     db: Session = Depends(get_db),
     client_info: dict = Depends(get_client_info)
 ):
-    """Перенаправляет по короткой ссылке на оригинальный URL"""
+    """Перенаправляет по короткой ссылке с буферизацией статистики"""
     original_url = get_cached_url(short_code)
     
-    if not original_url:
-        link = db.query(Link).filter(Link.short_code == short_code).first()
+    if original_url:
+        increment_access_counter(short_code)
         
-        if not link:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Ссылка не найдена"
-            )
+        add_click_details(short_code, client_info)
         
-        if is_expired(link.expires_at):
-            raise HTTPException(
-                status_code=status.HTTP_410_GONE,
-                detail="Срок действия ссылки истек"
-            )
-        
-        original_url = link.original_url
-        
-        if is_popular_url(short_code):
-            cache_url(short_code, original_url)
+        return RedirectResponse(url=original_url)
     
     link = db.query(Link).filter(Link.short_code == short_code).first()
-
-    if link:
-        link.click_count += 1
-        link.last_accessed = datetime.now(timezone.utc)
-        
-        click = Click(
-            link_id=link.id,
-            ip_address=client_info.get("ip_address"),
-            user_agent=client_info.get("user_agent"),
-            referer=client_info.get("referer")
+    
+    if not link:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Ссылка не найдена"
         )
+    
+    if is_expired(link.expires_at):
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail="Срок действия ссылки истек"
+        )
+    
+    original_url = link.original_url
+    
+    link.click_count += 1
+    link.last_accessed = datetime.now(timezone.utc)
+    
+    click = Click(
+        link_id=link.id,
+        ip_address=client_info.get("ip_address"),
+        user_agent=client_info.get("user_agent"),
+        referer=client_info.get("referer")
+    )
+    db.add(click)
+    db.commit()
+    
+    if link.click_count >= settings.POPULAR_URL_THRESHOLD:
+        expire = None
+        if link.expires_at:
+            now = datetime.now(timezone.utc)
+            if link.expires_at > now:
+                expire = int((link.expires_at - now).total_seconds())
         
-        db.add(click)
-        db.commit()
-        
-        check_and_update_popularity(short_code, link.click_count)
-        
-        invalidate_stats_cache(short_code)
+        cache_url(short_code, original_url, expire)
     
     return RedirectResponse(url=original_url)
 
@@ -133,9 +139,7 @@ async def create_short_link(
     
     if link_data.custom_alias or is_popular_url(new_link.short_code):
         cache_url(new_link.short_code, new_link.original_url)
-    
-    cache_search_result(new_link.original_url, new_link.short_code)
-    
+        
     response = LinkResponse(
         short_code=new_link.short_code,
         original_url=new_link.original_url,
@@ -182,12 +186,7 @@ async def get_link_stats(
     short_code: str,
     db: Session = Depends(get_db)
 ):
-    """Получает статистику использования короткой ссылки"""
-    cached_stats = get_cached_stats(short_code)
-    
-    if cached_stats:
-        return LinkStatsDetailed(**cached_stats)
-    
+    """Получает статистику использования короткой ссылки"""    
     link = db.query(Link).filter(Link.short_code == short_code).first()
     
     if not link:
@@ -210,8 +209,6 @@ async def get_link_stats(
         recent_clicks=recent_clicks
     )
     
-    cache_stats(short_code, stats.model_dump(exclude={"recent_clicks"}))
-    
     return stats
 
 # Обновление ссылки
@@ -226,13 +223,31 @@ async def update_link(
     if link_data.original_url:
         link.original_url = link_data.original_url
     
+    try:
+        clicks = get_buffered_clicks(short_code)
+        last_access = get_buffered_last_access(short_code)
+        
+        if clicks > 0:
+            link.click_count += clicks
+            if last_access:
+                link.last_accessed = last_access
+    except Exception as e:
+        print(f"Ошибка при синхронизации статистики: {e}")
+    
     db.commit()
     db.refresh(link)
     
     invalidate_url_cache(short_code)
+    reset_buffered_stats(short_code)
     
-    if is_popular_url(short_code):
-        cache_url(short_code, link.original_url)
+    if link.click_count >= settings.POPULAR_URL_THRESHOLD:
+        expire = None
+        if link.expires_at:
+            now = datetime.now(timezone.utc)
+            if link.expires_at > now:
+                expire = int((link.expires_at - now).total_seconds())
+        
+        cache_url(short_code, link.original_url, expire)
     
     return LinkResponse(
         short_code=link.short_code,
@@ -254,6 +269,8 @@ async def delete_link(
     db.commit()
     
     invalidate_url_cache(short_code)
+    
+    reset_buffered_stats(short_code)
     
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
