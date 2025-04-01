@@ -10,10 +10,11 @@ class Settings(BaseSettings):
     
     DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://postgres:password@localhost/url_shortener")
     
-    REDIS_HOST: str = os.getenv("REDIS_HOST", "localhost")
-    REDIS_PORT: int = int(os.getenv("REDIS_PORT", 6379))
+    REDIS_HOST: str = os.getenv("REDISHOST", "localhost")
+    REDIS_PORT: int = int(os.getenv("REDISPORT", 6379))
     REDIS_DB: int = int(os.getenv("REDIS_DB", 0))
-    REDIS_URL: str = os.getenv("REDIS_URL", f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}")
+    REDIS_PASSWORD: str = os.getenv("REDISPASSWORD", "")
+    REDIS_USERNAME: str = os.getenv("REDISUSER", "")
     
     SECRET_KEY: str = os.getenv("SECRET_KEY", "supersecretkey")
     ALGORITHM: str = "HS256"
