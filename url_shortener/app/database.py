@@ -9,12 +9,9 @@ TESTING = os.environ.get("TESTING", "False") == "True"
 if TESTING:
     DATABASE_URL = "sqlite:///./test.db"
     engine = create_engine(
-    settings.DATABASE_URL,
-    pool_size=20,
-    max_overflow=20,
-    pool_timeout=60,
-    pool_recycle=3600
-)
+        DATABASE_URL,
+        connect_args={"check_same_thread": False}
+    )
 else:
     engine = create_engine(settings.DATABASE_URL)
 
