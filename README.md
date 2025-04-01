@@ -35,7 +35,7 @@ This URL Shortener API provides a robust solution for creating, managing, and tr
 ### Create a shortened URL
 
 ```bash
-curl -X POST "https://linkshortener-production-9f6e.up.railway.app/links/shorten" \
+curl -X POST "https://linkshortener-production-a900.up.railway.app/links/shorten" \
   -H "Content-Type: application/json" \
   -d '{"original_url": "https://example.com/very/long/url/that/needs/shortening"}'
 ```
@@ -45,7 +45,7 @@ Response:
 {
   "short_code": "a1b2c3d",
   "original_url": "https://example.com/very/long/url/that/needs/shortening",
-  "short_url": "https://linkshortener-production-9f6e.up.railway.app/a1b2c3d",
+  "short_url": "https://linkshortener-production-a900.up.railway.app/a1b2c3d",
   "created_at": "2025-04-01T12:34:56.789012",
   "expires_at": null
 }
@@ -54,7 +54,7 @@ Response:
 ### Create a shortened URL with custom alias
 
 ```bash
-curl -X POST "https://linkshortener-production-9f6e.up.railway.app/links/shorten" \
+curl -X POST "https://linkshortener-production-a900.up.railway.app/links/shorten" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -d '{
@@ -69,7 +69,7 @@ Response:
 {
   "short_code": "mylink",
   "original_url": "https://example.com/very/long/url",
-  "short_url": "https://linkshortener-production-9f6e.up.railway.app/mylink",
+  "short_url": "https://linkshortener-production-a900.up.railway.app/mylink",
   "created_at": "2025-04-01T12:34:56.789012",
   "expires_at": "2025-05-01T00:00:00Z"
 }
@@ -78,7 +78,7 @@ Response:
 ### Get URL statistics
 
 ```bash
-curl -X GET "https://linkshortener-production-9f6e.up.railway.app/links/mylink/stats" \
+curl -X GET "https://linkshortener-production-a900.up.railway.app/links/mylink/stats" \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
@@ -118,7 +118,7 @@ Create a `.env` file in the project root with the following variables:
 
 ```
 SECRET_KEY=your_secure_secret_key
-BASE_URL=https://linkshortener-production-9f6e.up.railway.app
+BASE_URL=https://linkshortener-production-a900.up.railway.app
 DATABASE_URL=postgresql://postgres:password@db/url_shortener
 REDIS_HOST=redis
 REDIS_PORT=6379
@@ -135,7 +135,7 @@ REDIS_DB=0
 docker-compose up -d
 ```
 
-The API will be available at https://linkshortener-production-9f6e.up.railway.app/ with documentation at https://linkshortener-production-9f6e.up.railway.app/docs
+The API will be available at https://linkshortener-production-a900.up.railway.app/ with documentation at https://linkshortener-production-a900.up.railway.app/docs
 
 ### Running Locally for Development
 
