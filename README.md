@@ -214,10 +214,28 @@ The application uses Redis for several caching mechanisms:
 
 ## Performance Optimization
 
-- Connection pooling for database connections
 - Redis caching for frequently accessed URLs
 - Background tasks for database cleanup and synchronization
 - Deferred write operations for click statistics
+
+## Code Coverage
+
+The project has comprehensive test coverage of the key components. The full coverage report is available in the `tests/coverage/` directory.
+
+| Module | Coverage |
+|--------|----------|
+| `app/cache.py` | 94% |
+| `app/models.py` | 100% |
+| `app/utils.py` | 100% |
+| `app/routers/links.py` | 80% |
+| `app/routers/auth.py` | 97% |
+
+#### **Total coverage 91%**
+
+To view the complete interactive coverage report:
+1. Clone the repository
+2. Navigate to `tests/coverage`
+3. Open `index.html` in a web browser
 
 ## Project Structure
 
